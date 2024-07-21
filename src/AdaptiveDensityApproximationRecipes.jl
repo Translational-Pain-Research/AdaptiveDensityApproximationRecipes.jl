@@ -20,9 +20,8 @@ function get_bar(block::ADA.OneDimBlock, height_function::Function)
 end
 
 # Default selector of color and opacity for wight of block, w.r.t. all other weights.
-function default_color_properties(weight,weights)
-	min_w  = minimum(weights)
-	max_w = maximum(weights)
+function default_fill_function(weight,weights)
+	min_w,max_w  = extrema(weights)
 	if min_w == max_w
 		opacity = 1
 	else
@@ -32,6 +31,9 @@ function default_color_properties(weight,weights)
 end
 
 
+function default_line_function(weight,weights)
+	return (1,:black)
+end
 
 
 
@@ -44,9 +46,9 @@ end
 ####################################################################################################
 
 # Plotting recipe for 2-dimensional grids.
-@recipe function f(grid::ADA.Grid;line_color = :black, color_function = default_color_properties) 
+@recipe function f(grid::ADA.Grid; line_color_function = default_line_function, fill_color_function = default_fill_function) 
 	
-	if dimension(grid) != 2 
+	if ADA.dimension(grid) != 2 
 		error("Only grids with dimension <= 2 can be plotted.")
 	end
 
@@ -56,16 +58,18 @@ end
 	weights = [grid[key].weight for key in key_list]
 
 
-	legend := false
-	linecolor := line_color
 	seriestype := :path
 
 	# Plot all blocks in the grid.
 	for key in key_list
 		@series begin
-			opacity, fill_color = color_function(grid[key].weight,weights)
+			label := nothing
+			line_opacity, line_color = line_color_function(grid[key].weight,weights)
+			fill_opacity, fill_color = fill_color_function(grid[key].weight,weights)
 			fillcolor := fill_color
-			fillalpha := opacity
+			fillalpha := fill_opacity
+			linecolor := line_color
+			linealpha := line_opacity
 
 			X,Y = get_rectangle(grid[key])
 			fillrange := minimum(Y)
@@ -79,26 +83,44 @@ end
 
 
 # Plotting recipe for one-dimensional grids.
-@recipe function f(grid::ADA.OneDimGrid;line_color = :black, color_function = default_color_properties, height_function = x-> x) 
+@recipe function f(grid::ADA.OneDimGrid; line_color_function = default_line_function, fill_color_function = default_fill_function, height_function = x-> x, vertical = false) 
 
 	# The color_function need the complete list of weights for every block.
 	key_list = collect(keys(grid))
 	weights = [grid[key].weight for key in key_list]
 
-	legend := false
-	linecolor := line_color
 	seriestype := :path
 
 	# Plot all intervals in the grid.
-	for key in key_list
-		@series begin
-			opacity, fill_color = color_function(grid[key].weight,weights)
-			fillcolor := fill_color
-			fillalpha := opacity
-			fillrange := 0
-			return get_bar(grid[key], height_function)
+	if vertical
+		for key in key_list
+			@series begin
+				label := nothing
+				line_opacity, line_color = line_color_function(grid[key].weight,weights)
+				fill_opacity, fill_color = fill_color_function(grid[key].weight,weights)
+				fillcolor := fill_color
+				fillalpha := fill_opacity
+				linecolor := line_color
+				X, Y = get_bar(grid[key], height_function)
+				fillrange := minimum(X)
+				return Y,X
+			end
+		end
+	else
+		for key in key_list
+			@series begin
+				label := nothing
+				line_opacity, line_color = line_color_function(grid[key].weight,weights)
+				fill_opacity, fill_color = fill_color_function(grid[key].weight,weights)
+				fillcolor := fill_color
+				fillalpha := fill_opacity
+				linecolor := line_color
+				fillrange := 0
+				return get_bar(grid[key], height_function)
+			end
 		end
 	end
+
 	return nothing
 end
 
